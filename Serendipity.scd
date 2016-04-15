@@ -3,6 +3,118 @@
 // move wav files to proper folder
 // mv tracks2/*.wav wavs
 
+
+
+// convert mp3 to wav
+// for f in tracks2/*.mp3;do lame --decode $f ${f%.mp3}.wav;done;
+// move wav files to proper folder
+// mv tracks2/*.wav wavs
+
+
+(
+var baseDir= thisProcess.nowExecutingPath.dirname.standardizePath;
+var lamePath= baseDir ++ "/bin/lame.exe".standardizePath;
+var featuresPath= baseDir ++ "/features/".standardizePath;
+
+
+l = List.new;
+
+PathName(baseDir++"/tracks/").files.do({arg file, i;
+	var tfd,bsfd,bffd,gfd,genre,bs, bf;
+	var track = file.fileNameWithoutExtension;
+	var basename = featuresPath ++ track;
+
+	tfd = File(basename ++ ".tempo","r");
+	bsfd = File(basename ++ ".beat_secs","r");
+	bffd = File(basename ++ ".beat_frames","r");
+	gfd = File(basename ++ ".genre","r");
+
+	t = tfd.readAllString.asFloat;
+	bs = bsfd.readAllString.split($\n).asFloat;
+	bf = bffd.readAllString.split($\n).asInt;
+	genre = gfd.readAllString.replace("\n","");
+
+	tfd.close;
+	bsfd.close;
+	bffd.close;
+
+
+	d = Dictionary.new;
+	d.add(\tempo -> t);
+	d.add(\originalFile -> file);
+	d.add(\genre -> genre);
+	d.add(\beats_skip -> (16 * [1,2,4,8,16].choose));
+	d.add(\beats_last -> (16 * [1,2].choose));
+	d.add(\beat_secs -> bs);
+	d.add(\beat_frames -> bf);
+	d.add(\index -> i);
+
+	l.add(d);
+
+
+});
+
+g = Set.new;
+
+l.do({arg item, i;
+	var genre =  item.at(\genre);
+	if(genre.isEmpty || g.includes(genre) ,
+		{},
+		{ g.add(genre)});
+});
+
+
+h = "Electronic"; //g.choose;
+
+l.count({arg item, i;
+	item.at(\genre) == h;
+});
+
+o = l.select({arg item, i;
+	item.at(\genre) == h;
+});
+o.sortBy(\tempo);
+
+
+
+PathName(baseDir++"/tracks/").files.do({arg file, i;
+	var input= baseDir ++ "/tracks/track001.mp3".standardizePath;
+	var output= baseDir ++ "/wavs/track001.wav".standardizePath;
+	var cmd = format("% --decode --silent \"%\"  \"%\"", lamePath, input, output);
+	//cmd.unixCmd( { |res, pid| output.postln }, false);
+
+});
+
+
+b = o.collect{ arg item,i;
+	item.at(\originalFile).fileName.postln;
+};
+
+
+
+
+)
+
+
+
+
+
+
+(
+Buffer.freeAll;
+// read a soundfile
+b = o.collect{ arg item,i;
+	Buffer.read(s, item.at(\wavfile));
+};
+
+
+)
+
+
+
+
+
+
 s.quit
 
 (
