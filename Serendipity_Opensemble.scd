@@ -49,6 +49,7 @@ SynthDef(\Compre, {arg out = 0, in, gate=1;
 	Out.ar(out, sig*env);
 }).add;
 
+//s.sync;
 ~mainCompre = Synth(\Compre, [\out, 0,\in, ~mainBus]);
 
 // path to tracks
@@ -87,7 +88,7 @@ l = (0..100).collect{ arg item,i;
 	d.add(\tempo -> t);
 	d.add(\wavfile -> wavfile);
 	d.add(\genre -> genre);
-	d.add(\beats_skip -> (16 * [1,2,4,8,16].choose));
+	d.add(\beats_skip -> (16 * [1,2].choose));
 	d.add(\beats_last -> (16 * [1,2].choose));
 	d.add(\beat_secs -> bs);
 	d.add(\beat_frames -> bf);
@@ -144,16 +145,19 @@ b = o.collect{ arg item,i;
 ~playfill = {
 ~msg = [5,\attack,3,\descent,\parabola,\rotation,\throw,\streaming,0,1,1,\saturated,\centre,1,1,1,1,\filled ];
 ~fill = ~msg[1..17];
-~opensemble.playEvent(~fill);
+~opensemble.playRandomEvent(~fill);
 
 };
 )
 
 //esperar unos segundos antes de disparar esto
 (
+
+//SystemClock.sched(30, { ~mainCompre.release(); ~mainRoutine.stop; "release".postln});
+
+
 {
 	//start 15min set. Sched release stage (14x60+50segs from now). Release 10 sec. WE NEED TO END OPENSEMBLE
-	SystemClock.sched(30, { ~mainCompre.release(); "release".postln});
 
 	//start music
 	o.do({ arg item, i;
@@ -168,11 +172,18 @@ b = o.collect{ arg item,i;
 		\startpos, item.at(\beat_frames)[item.at(\beats_skip)]
 	]);
 	duration.wait;
-	~playfill.value(); // WARNING: el fill debe ir al bus de salida comprimido
 	x.free;
+	s.sync;
+	"play fill".postln;
+	SystemClock.sched(0.1, ~playfill);  // WARNING: el fill debe ir al bus de salida comprimido
+
 })}.fork;
+
+//"DONE".postln;
 )
 
+
+CmdPeriod.run
 
 
 
