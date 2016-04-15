@@ -6,10 +6,11 @@
 s.quit
 
 (
-s = Server.local;
+s = Server.local;   // tengo problemas con local
 s.boot;
 )
 
+//-----------------------------------------
 (
 		// now play it
 
@@ -49,7 +50,7 @@ SynthDef(\Compre, {arg out = 0, in, gate=1;
 	Out.ar(out, sig*env);
 }).add;
 
-//s.sync;
+{s.sync};
 ~mainCompre = Synth(\Compre, [\out, 0,\in, ~mainBus]);
 
 // path to tracks
@@ -60,7 +61,7 @@ SynthDef(\Compre, {arg out = 0, in, gate=1;
 ~featuresDir = thisProcess.nowExecutingPath.dirname ++ "/features/".standardizePath;
 )
 
-
+//-----------------------------------------
 
 (
 l = (0..100).collect{ arg item,i;
@@ -82,14 +83,15 @@ l = (0..100).collect{ arg item,i;
 	tfd.close;
 	bsfd.close;
 	bffd.close;
+	gfd.close;
 
 
 	d = Dictionary.new;
 	d.add(\tempo -> t);
 	d.add(\wavfile -> wavfile);
 	d.add(\genre -> genre);
-	d.add(\beats_skip -> (16 * [1,2].choose));
-	d.add(\beats_last -> (16 * [1,2].choose));
+	d.add(\beats_skip -> (4 * [1,2].choose)); //buscar uno con (RMS > x)
+	d.add(\beats_last -> (4 * [1,2].choose));
 	d.add(\beat_secs -> bs);
 	d.add(\beat_frames -> bf);
 	d.add(\index -> i);
@@ -100,7 +102,7 @@ l = (0..100).collect{ arg item,i;
 )
 
 
-
+//-----------------------------------------
 (
 
 g = Set.new;
@@ -126,33 +128,45 @@ o.sortBy(\tempo);
 
 )
 
+o.size
 
+//-----------------------------------------
+//CARGAR BUFFERS
 (
 Buffer.freeAll;
 // read a soundfile
-b = o.collect{ arg item,i;
-	Buffer.read(s, item.at(\wavfile));
+
+b = o.collect{ arg item,i; var bb;
+	bb = Buffer.read(s, item.at(\wavfile));
+	{s.sync;}.fork; //should wait?
+	bb;
+
 };
 
 
 )
+
+//-----------------------------------------
 
 (
 //inicializar opensemble..
 //elegir distintos gestos
 
-//función con fills de transición
-~playfill = {
 ~msg = [5,\attack,3,\descent,\parabola,\rotation,\throw,\streaming,0,1,1,\saturated,\centre,1,1,1,1,\filled ];
 ~fill = ~msg[1..17];
+
+
+//función con fills de transición
+~playfill = {
 ~opensemble.playRandomEvent(~fill);
 
 };
 )
+//-----------------------------------------
+
 
 //esperar unos segundos antes de disparar esto
 (
-
 //SystemClock.sched(30, { ~mainCompre.release(); ~mainRoutine.stop; "release".postln});
 
 
@@ -173,13 +187,13 @@ b = o.collect{ arg item,i;
 	]);
 	duration.wait;
 	x.free;
-	s.sync;
-	"play fill".postln;
-	SystemClock.sched(0.1, ~playfill);  // WARNING: el fill debe ir al bus de salida comprimido
+	s.sync; //evita referencias perdidas
+
+	"play fill start".postln;
+	~playfill.value;  //esto es asincrónico
 
 })}.fork;
 
-//"DONE".postln;
 )
 
 
