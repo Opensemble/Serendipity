@@ -15,6 +15,7 @@
 var baseDir= thisProcess.nowExecutingPath.dirname.standardizePath;
 var lamePath= baseDir ++ "/bin/lame.exe".standardizePath;
 var featuresPath= baseDir ++ "/features/".standardizePath;
+var wavsPath= baseDir ++ "/wavs/".standardizePath;
 
 
 l = List.new;
@@ -77,17 +78,14 @@ o.sortBy(\tempo);
 
 
 
-PathName(baseDir++"/tracks/").files.do({arg file, i;
-	var input= baseDir ++ "/tracks/track001.mp3".standardizePath;
-	var output= baseDir ++ "/wavs/track001.wav".standardizePath;
-	var cmd = format("% --decode --silent \"%\"  \"%\"", lamePath, input, output);
-	//cmd.unixCmd( { |res, pid| output.postln }, false);
-
-});
-
-
+//convert to wav all selected mp3 files
 b = o.collect{ arg item,i;
-	item.at(\originalFile).fileName.postln;
+	var input= item.at(\originalFile).fullPath.standardizePath;
+	//var output= PathName.tmp.standardizePath ++ "/wavs/"++item.at(\originalFile).fileNameWithoutExtension ++".wav";
+	var output = wavsPath++item.at(\originalFile).fileNameWithoutExtension ++".wav";
+	var cmd = format("% --decode --silent \"%\"  \"%\"", lamePath, input, output);
+	//cmd.unixCmd;
+	cmd.unixCmdGetStdOut;
 };
 
 
