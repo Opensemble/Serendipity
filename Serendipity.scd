@@ -5,13 +5,8 @@
 
 
 
-// convert mp3 to wav
-// for f in tracks2/*.mp3;do lame --decode $f ${f%.mp3}.wav;done;
-// move wav files to proper folder
-// mv tracks2/*.wav wavs
-
-
 (
+{
 var baseDir= thisProcess.nowExecutingPath.dirname.standardizePath;
 var lamePath= baseDir ++ "/bin/lame.exe".standardizePath;
 var featuresPath= baseDir ++ "/features/".standardizePath;
@@ -33,95 +28,87 @@ PathName(baseDir++"/tracks/").files.do({arg file, i;
 	t = tfd.readAllString.asFloat;
 	bs = bsfd.readAllString.split($\n).asFloat;
 	bf = bffd.readAllString.split($\n).asInt;
-	genre = gfd.readAllString.replace("\n","");
+	genre = gfd.readAllString.replace("\n","").replace("\r","");
 
 	tfd.close;
 	bsfd.close;
 	bffd.close;
-
+	gfd.close;
 
 	d = Dictionary.new;
 	d.add(\tempo -> t);
 	d.add(\originalFile -> file);
 	d.add(\genre -> genre);
-	d.add(\beats_skip -> (16 * [1,2,4,8,16].choose));
-	d.add(\beats_last -> (16 * [1,2].choose));
+	d.add(\beats_skip -> (16 * [1,2,4,8].choose));
+	d.add(\beats_last -> (4 * [1,2].choose));
 	d.add(\beat_secs -> bs);
 	d.add(\beat_frames -> bf);
-	d.add(\index -> i);
 
 	l.add(d);
 
 
 });
 
+l = l.reject({arg item, i;
+	item.at(\genre).size==0;
+});
+
 g = Set.new;
 
 l.do({arg item, i;
 	var genre =  item.at(\genre);
-	if(genre.isEmpty || g.includes(genre) ,
+	if(g.includes(genre) ,
 		{},
 		{ g.add(genre)});
 });
 
+//selects a genre
+h = g.choose;
 
-h = "Electronic"; //g.choose;
 
-l.count({arg item, i;
-	item.at(\genre) == h;
-});
-
+//selects matching genre tracks
 o = l.select({arg item, i;
 	item.at(\genre) == h;
 });
+
 o.sortBy(\tempo);
+format("Selected genre: % , % tracks matched.",h, o.size).postln;
 
 
 
 //convert to wav all selected mp3 files
 b = o.collect{ arg item,i;
 	var input= item.at(\originalFile).fullPath.standardizePath;
-	//var output= PathName.tmp.standardizePath ++ "/wavs/"++item.at(\originalFile).fileNameWithoutExtension ++".wav";
 	var output = wavsPath++item.at(\originalFile).fileNameWithoutExtension ++".wav";
 	var cmd = format("% --decode --silent \"%\"  \"%\"", lamePath, input, output);
 	//cmd.unixCmd;
+	format("converting % ",item.at(\originalFile).fileName).postln;
 	cmd.unixCmdGetStdOut;
+	//adds wav file path to dictionary
+	item.add(\wavfile->output);
 };
 
+"all files converted".postln;
+1.wait;
+"loading buffers".postln;
 
-
-
-)
-
-
-
-
-
-
-(
 Buffer.freeAll;
 // read a soundfile
-b = o.collect{ arg item,i;
-	Buffer.read(s, item.at(\wavfile));
+
+b = o.collect{ arg item,i; var bb;
+	bb = Buffer.read(s, item.at(\wavfile));
+	{s.sync;}.fork; //should wait?
+	bb;
+
 };
+"buffers loaded".postln;
 
 
-)
+"creating main out bus".postln;
 
+~mainBus = Bus.audio(s, 2);
 
-
-
-
-
-s.quit
-
-(
-s = Server.local;
-s.boot;
-)
-
-(
-		// now play it
+"defining play buf synth def".postln;
 
 SynthDef(\playBuf,{ arg out = 0, bufnum, startpos;
 	Out.ar( out,
@@ -129,7 +116,7 @@ SynthDef(\playBuf,{ arg out = 0, bufnum, startpos;
 )
 }).add;
 
-~mainBus = Bus.audio(s, 2);
+"defining compresor synth def".postln;
 
 SynthDef(\Compre, {arg out = 0, in, gate=1;
 	var sig, env;
@@ -159,118 +146,33 @@ SynthDef(\Compre, {arg out = 0, in, gate=1;
 	Out.ar(out, sig*env);
 }).add;
 
+"waiting server to be on sync".postln;
+{s.sync};
+"declaring main compresor on main bus".postln;
 ~mainCompre = Synth(\Compre, [\out, 0,\in, ~mainBus]);
 
-// path to tracks
-~wavsDir = thisProcess.nowExecutingPath.dirname ++ "/wavs/".standardizePath;
 
-
-// features
-~featuresDir = thisProcess.nowExecutingPath.dirname ++ "/features/".standardizePath;
+}.fork;
 )
 
 
 
-(
-l = (0..100).collect{ arg item,i;
-	var tfd,bsfd,bffd,gfd,genre,bs, bf;
-	var track = "track"++ i.asStringToBase(10, 3);
-	var basename = ~featuresDir ++ track;
-	var wavfile = ~wavsDir ++ track++".wav";
 
-	tfd = File(basename ++ ".tempo","r");
-	bsfd = File(basename ++ ".beat_secs","r");
-	bffd = File(basename ++ ".beat_frames","r");
-	gfd = File(basename ++ ".genre","r");
-
-	t = tfd.readAllString.asFloat;
-	bs = bsfd.readAllString.split($\n).asFloat;
-	bf = bffd.readAllString.split($\n).asInt;
-	genre = gfd.readAllString.replace("\n","");
-
-	tfd.close;
-	bsfd.close;
-	bffd.close;
-
-
-	d = Dictionary.new;
-	d.add(\tempo -> t);
-	d.add(\wavfile -> wavfile);
-	d.add(\genre -> genre);
-	d.add(\beats_skip -> (16 * [1,2,4,8,16].choose));
-	d.add(\beats_last -> (16 * [1,2].choose));
-	d.add(\beat_secs -> bs);
-	d.add(\beat_frames -> bf);
-	d.add(\index -> i);
-
-	d;
-};
-
-)
-
-
-
-(
-
-g = Set.new;
-
-l.do({arg item, i;
-	var genre =  item.at(\genre);
-	if(genre.isEmpty || g.includes(genre) ,
-		{},
-		{ g.add(genre)});
-});
-
-
-h = "Electronic"; //g.choose;
-
-l.count({arg item, i;
-	item.at(\genre) == h;
-});
-
-o = l.select({arg item, i;
-	item.at(\genre) == h;
-});
-o.sortBy(\tempo);
-
-)
-
-
-(
-Buffer.freeAll;
-// read a soundfile
-b = o.collect{ arg item,i;
-	Buffer.read(s, item.at(\wavfile));
-};
-
-
-)
-
-(
-//inicializar opensemble..
-//elegir distintos gestos
-
-//función con fills de transición
-~playfill = {
-~msg = [5,\attack,3,\descent,\parabola,\rotation,\throw,\streaming,0,1,1,\saturated,\centre,1,1,1,1,\filled ];
-~fill = ~msg[1..17];
-~opensemble.playEvent(~fill);
-
-};
-)
 
 //esperar unos segundos antes de disparar esto
 (
+//SystemClock.sched(30, { ~mainCompre.release(); ~mainRoutine.stop; "release".postln});
+
+
 {
 	//start 15min set. Sched release stage (14x60+50segs from now). Release 10 sec. WE NEED TO END OPENSEMBLE
-	SystemClock.sched(30, { ~mainCompre.release(); "release".postln});
 
 	//start music
 	o.do({ arg item, i;
+	var skip = item.at(\beats_skip);
+	var last = item.at(\beats_last);
+	var duration = item.at(\beat_secs)[skip+last-1] - item.at(\beat_secs)[skip-1];
 
-	//var duration = item.at(\beat_secs)[item.at(\beats_skip)+item.at(\beats_last)] - item.at(\beat_secs)[item.at(\beats_skip)];
-
-	var duration = item.at(\beats_last); // el cálculo anterior tira errores
 
 	x = Synth(\playBuf,[
 		\out, ~mainBus,
@@ -278,11 +180,16 @@ b = o.collect{ arg item,i;
 		\startpos, item.at(\beat_frames)[item.at(\beats_skip)]
 	]);
 	duration.wait;
-	~playfill.value(); // WARNING: el fill debe ir al bus de salida comprimido
 	x.free;
+	s.sync; //evita referencias perdidas
+
+	"play fill start".postln;
+	//~playfill.value;  //esto es asincrónico
+
 })}.fork;
+
 )
 
 
-
+CmdPeriod.run
 
