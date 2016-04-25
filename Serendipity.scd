@@ -1,9 +1,3 @@
-// convert mp3 to wav
-// for f in tracks2/*.mp3;do lame --decode $f ${f%.mp3}.wav;done;
-// move wav files to proper folder
-// mv tracks2/*.wav wavs
-
-
 (
 {
 var baseDir= thisProcess.nowExecutingPath.dirname.standardizePath;
@@ -15,7 +9,7 @@ var wavsPath= baseDir ++ "/wavs/".standardizePath;
 l = List.new;
 
 PathName(baseDir++"/tracks/").files.do({arg file, i;
-	var tfd,bsfd,bffd,gfd,genre,bs, bf, rmsfd, rms;
+	var tfd,bsfd,bffd,gfd,rfd,t,genre,bs, bf,r;
 	var track = file.fileNameWithoutExtension;
 	var basename = featuresPath ++ track;
 
@@ -23,20 +17,22 @@ PathName(baseDir++"/tracks/").files.do({arg file, i;
 	bsfd = File(basename ++ ".beat_secs","r");
 	bffd = File(basename ++ ".beat_frames","r");
 	gfd = File(basename ++ ".genre","r");
-	rmsfd = File(basename ++ ".rmse","r");
+	rfd = File(basename ++ ".rmse","r");
+
+	format("attempting to gather % features...",track).post;
 
 
 	t = tfd.readAllString.asFloat;
 	bs = bsfd.readAllString.split($\n).asFloat;
 	bf = bffd.readAllString.split($\n).asInt;
-	rms = rmsfd.readAllString.split($\n).asFloat;
 	genre = gfd.readAllString.replace("\n","").replace("\r","");
+	r = rfd.readAllString.split($\n).asFloat;
 
 	tfd.close;
 	bsfd.close;
 	bffd.close;
 	gfd.close;
-	rmsfd.close;
+	rfd.close;
 
 	d = Dictionary.new;
 	d.add(\tempo -> t);
@@ -44,7 +40,7 @@ PathName(baseDir++"/tracks/").files.do({arg file, i;
 	d.add(\genre -> genre);
 	d.add(\beat_secs -> bs);
 	d.add(\beat_frames -> bf);
-	d.add(\rms_framse -> rms);
+	d.add(\rmse -> r);
 
 	// segment analisys function
 
@@ -64,7 +60,7 @@ PathName(baseDir++"/tracks/").files.do({arg file, i;
 	d.add(\beats_last -> (4 * [1,2].choose));
 	d.add(\loop_times -> 4);
 
-
+	"ok.".postln;
 	l.add(d);
 
 
@@ -96,6 +92,8 @@ o.sortBy(\tempo);
 format("Selected genre: % , % tracks matched.",h, o.size).postln;
 
 //convert to wav all selected mp3 files
+// for f in tracks2/*.mp3;do lame --decode $f ${f%.mp3}.wav;done;
+// mv tracks2/*.wav wavs
 b = o.collect{ arg item,i;
 	var input= item.at(\originalFile).fullPath.standardizePath;
 	var output = wavsPath++item.at(\originalFile).fileNameWithoutExtension ++".wav";
@@ -103,8 +101,8 @@ b = o.collect{ arg item,i;
 	//cmd.unixCmd;
 	format("converting % ",item.at(\originalFile).fileName).postln;
 
-// FOR TESTING
-//	cmd.unixCmdGetStdOut;
+
+	cmd.unixCmdGetStdOut;
 
 
 	//adds wav file path to dictionary
